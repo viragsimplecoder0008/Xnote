@@ -65,12 +65,7 @@ jobs:
         run: |
           mkdir -p rpmbuild/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
 
-          mkdir -p xnote-package/usr/bin
-          cp xnote xnote-package/usr/bin/xnote
-
-          tar -czf rpmbuild/SOURCES/xnote-1.0.0.tar.gz xnote-package
-
-          cat > rpmbuild/SPECS/xnote.spec << 'EOF'
+          cat > rpmbuild/SPECS/xnote.spec << EOF
           Name:           xnote
           Version:        1.0.0
           Release:        1
@@ -82,13 +77,9 @@ jobs:
           %description
           Xnote is a lightweight terminal text editor.
 
-          %prep
-
-          %build
-
           %install
           mkdir -p %{buildroot}/usr/bin
-          cp xnote-package/usr/bin/xnote %{buildroot}/usr/bin/xnote
+          cp $(pwd)/xnote %{buildroot}/usr/bin/xnote
           chmod 755 %{buildroot}/usr/bin/xnote
 
           %files
