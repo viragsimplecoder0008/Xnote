@@ -137,7 +137,7 @@ jobs:
           depends=('ncurses')
 
           package() {
-              install -Dm755 "$srcdir/arch-package/usr/bin/xnote" \
+              install -Dm755 "$startdir/arch-package/usr/bin/xnote" \
                   "$pkgdir/usr/bin/xnote"
           }
           EOF
