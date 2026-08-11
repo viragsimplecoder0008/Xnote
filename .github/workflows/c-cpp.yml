@@ -180,7 +180,6 @@ jobs:
           Name=Xnote
           Comment=A simple terminal text editor
           Exec=xnote
-          Icon=xnote
           Type=Application
           Categories=Utility;TextEditor;
           Terminal=true;
