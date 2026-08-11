@@ -172,17 +172,22 @@ jobs:
         run: |
           mkdir -p Xnote.AppDir/usr/bin
           mkdir -p Xnote.AppDir/usr/share/applications
+          mkdir -p Xnote.AppDir/usr/share/icons/hicolor/256x256/apps
 
           cp xnote Xnote.AppDir/usr/bin/xnote
+
+          cp assets/Xnote-logo.png \
+             Xnote.AppDir/usr/share/icons/hicolor/256x256/apps/xnote.png
 
           cat > Xnote.AppDir/xnote.desktop << 'EOF'
           [Desktop Entry]
           Name=Xnote
           Comment=A simple terminal text editor
           Exec=xnote
+          Icon=xnote
           Type=Application
           Categories=Utility;TextEditor;
-          Terminal=true;
+          Terminal=true
           EOF
 
           cp Xnote.AppDir/xnote.desktop \
