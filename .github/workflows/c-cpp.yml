@@ -46,8 +46,12 @@ jobs:
           name: xnote-deb
           path: xnote_1.0.0_amd64.deb
 
+
   build-rpm:
     runs-on: ubuntu-latest
+
+    container:
+      image: fedora:latest
 
     steps:
       - name: Get Xnote
@@ -55,17 +59,17 @@ jobs:
 
       - name: Install dependencies
         run: |
-          sudo apt update
-          sudo apt install -y build-essential libncurses-dev rpm
+          dnf update -y
+          dnf install -y gcc make ncurses-devel rpm-build
 
       - name: Build Xnote
         run: make
 
       - name: Create RPM package
         run: |
-          mkdir -p rpmbuild/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
+          mkdir -p rpmbuild/{BUILD,BUILDROOT,RPMS,SOURCES,SPECS,SRPMS}
 
-          cat > rpmbuild/SPECS/xnote.spec << EOF
+          cat > rpmbuild/SPECS/xnote.spec << 'EOF'
           Name:           xnote
           Version:        1.0.0
           Release:        1
@@ -79,7 +83,7 @@ jobs:
 
           %install
           mkdir -p %{buildroot}/usr/bin
-          cp $(pwd)/xnote %{buildroot}/usr/bin/xnote
+          cp %{_topdir}/../xnote %{buildroot}/usr/bin/xnote
           chmod 755 %{buildroot}/usr/bin/xnote
 
           %files
@@ -87,7 +91,7 @@ jobs:
           EOF
 
           rpmbuild \
-            --define "_topdir $(pwd)/rpmbuild" \
+            --define "_topdir %{_topdir}" \
             -bb rpmbuild/SPECS/xnote.spec
 
           cp rpmbuild/RPMS/x86_64/*.rpm xnote-1.0.0-1.x86_64.rpm
@@ -97,6 +101,7 @@ jobs:
         with:
           name: xnote-rpm
           path: xnote-1.0.0-1.x86_64.rpm
+
 
   build-arch:
     runs-on: ubuntu-latest
@@ -125,6 +130,7 @@ jobs:
       - name: Create Arch package
         run: |
           mkdir -p arch-package/usr/bin
+
           cp xnote arch-package/usr/bin/xnote
 
           cat > PKGBUILD << 'EOF'
@@ -153,6 +159,7 @@ jobs:
           name: xnote-arch
           path: xnote-*.pkg.tar.zst
 
+
   build-appimage:
     runs-on: ubuntu-latest
 
@@ -177,9 +184,9 @@ jobs:
           cp xnote Xnote.AppDir/usr/bin/xnote
 
           cp assets/Xnote-logo.png \
-             Xnote.AppDir/usr/share/icons/hicolor/256x256/apps/xnote.png
+            Xnote.AppDir/usr/share/icons/hicolor/256x256/apps/xnote.png
 
-          cat > Xnote.AppDir/xnote.desktop << 'EOF'
+          cat > Xnote.AppDir/usr/share/applications/xnote.desktop << 'EOF'
           [Desktop Entry]
           Name=Xnote
           Comment=A simple terminal text editor
@@ -189,9 +196,6 @@ jobs:
           Categories=Utility;TextEditor;
           Terminal=true
           EOF
-
-          cp Xnote.AppDir/xnote.desktop \
-             Xnote.AppDir/usr/share/applications/xnote.desktop
 
       - name: Download linuxdeploy
         run: |
@@ -203,6 +207,8 @@ jobs:
         run: |
           ./linuxdeploy \
             --appdir Xnote.AppDir \
+            --desktop-file Xnote.AppDir/usr/share/applications/xnote.desktop \
+            --icon-file Xnote.AppDir/usr/share/icons/hicolor/256x256/apps/xnote.png \
             --output appimage
 
           mv Xnote*.AppImage Xnote-1.0.0-x86_64.AppImage
