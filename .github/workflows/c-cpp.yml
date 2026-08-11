@@ -113,8 +113,14 @@ jobs:
           pacman -Syu --noconfirm
           pacman -S --noconfirm base-devel ncurses
 
+      - name: Create build user
+        run: |
+          useradd -m builder
+          chown -R builder:builder "$GITHUB_WORKSPACE"
+
       - name: Build Xnote
-        run: make
+        run: |
+          su builder -c "cd '$GITHUB_WORKSPACE' && make"
 
       - name: Create Arch package
         run: |
@@ -136,7 +142,10 @@ jobs:
           }
           EOF
 
-          makepkg --nodeps --force
+          chown builder:builder PKGBUILD
+          chown -R builder:builder arch-package
+
+          su builder -c "cd '$GITHUB_WORKSPACE' && makepkg --nodeps --force"
 
       - name: Upload Xnote Arch package
         uses: actions/upload-artifact@v4
