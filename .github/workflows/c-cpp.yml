@@ -1,0 +1,47 @@
+name: Build Xnote
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-deb:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Get Xnote
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y build-essential libncurses-dev dpkg-dev
+
+      - name: Build Xnote
+        run: make
+
+      - name: Create Debian package
+        run: |
+          mkdir -p package/DEBIAN
+          mkdir -p package/usr/bin
+
+          cp xnote package/usr/bin/xnote
+
+          cat > package/DEBIAN/control << 'EOF'
+          Package: xnote
+          Version: 1.0.0
+          Section: editors
+          Priority: optional
+          Architecture: amd64
+          Maintainer: Xnote
+          Description: A simple terminal text editor
+           Xnote is a lightweight terminal text editor.
+          Depends: libncurses6
+          EOF
+
+          dpkg-deb --build package xnote_1.0.0_amd64.deb
+
+      - name: Upload Xnote installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: xnote-deb
+          path: xnote_1.0.0_amd64.deb
