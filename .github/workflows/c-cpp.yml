@@ -97,3 +97,82 @@ jobs:
         with:
           name: xnote-rpm
           path: xnote-1.0.0-1.x86_64.rpm
+
+  build-arch:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Get Xnote
+        uses: actions/checkout@v4
+
+      - name: Build Xnote
+        run: |
+          sudo apt update
+          sudo apt install -y build-essential libncurses-dev
+          make
+
+      - name: Install Arch packaging tools
+        run: |
+          sudo apt install -y zstd
+
+      - name: Create Arch package
+        run: |
+          mkdir -p arch-package/usr/bin
+
+          cp xnote arch-package/usr/bin/xnote
+
+          cat > PKGBUILD << 'EOF'
+          pkgname=xnote
+          pkgver=1.0.0
+          pkgrel=1
+          pkgdesc="A simple terminal text editor"
+          arch=('x86_64')
+          license=('GPL-3.0')
+          depends=('ncurses')
+
+          package() {
+              install -Dm755 "$srcdir/arch-package/usr/bin/xnote" \
+                  "$pkgdir/usr/bin/xnote"
+          }
+          EOF
+
+          makepkg \
+            --nodeps \
+            --force \
+            --cleanbuild \
+            --packagelist
+
+      - name: Build Arch package
+        run: |
+          mkdir -p arch-package/usr/bin
+          cp xnote arch-package/usr/bin/xnote
+
+          cat > PKGBUILD << 'EOF'
+          pkgname=xnote
+          pkgver=1.0.0
+          pkgrel=1
+          pkgdesc="A simple terminal text editor"
+          arch=('x86_64')
+          license=('GPL-3.0')
+          depends=('ncurses')
+
+          package() {
+              install -Dm755 "$srcdir/arch-package/usr/bin/xnote" \
+                  "$pkgdir/usr/bin/xnote"
+          }
+          EOF
+
+          docker run --rm \
+            -v "$PWD:/workspace" \
+            -w /workspace \
+            archlinux:latest \
+            bash -c '
+              pacman -Sy --noconfirm base-devel &&
+              makepkg --nodeps --force
+            '
+
+      - name: Upload Xnote Arch package
+        uses: actions/upload-artifact@v4
+        with:
+          name: xnote-arch
+          path: xnote-*.pkg.tar.zst
