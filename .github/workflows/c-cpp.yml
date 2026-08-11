@@ -67,7 +67,12 @@ jobs:
 
       - name: Create RPM package
         run: |
-          mkdir -p rpmbuild/{BUILD,BUILDROOT,RPMS,SOURCES,SPECS,SRPMS}
+          mkdir -p rpmbuild/BUILD
+          mkdir -p rpmbuild/BUILDROOT
+          mkdir -p rpmbuild/RPMS
+          mkdir -p rpmbuild/SOURCES
+          mkdir -p rpmbuild/SPECS
+          mkdir -p rpmbuild/SRPMS
 
           cat > rpmbuild/SPECS/xnote.spec << 'EOF'
           Name:           xnote
@@ -91,7 +96,7 @@ jobs:
           EOF
 
           rpmbuild \
-            --define "_topdir %{_topdir}" \
+            --define "_topdir $(pwd)/rpmbuild" \
             -bb rpmbuild/SPECS/xnote.spec
 
           cp rpmbuild/RPMS/x86_64/*.rpm xnote-1.0.0-1.x86_64.rpm
@@ -170,12 +175,12 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt update
-          sudo apt install -y build-essential libncurses-dev wget
+          sudo apt install -y build-essential libncurses-dev wget imagemagick
 
       - name: Build Xnote
         run: make
 
-      - name: Create AppDir
+      - name: Prepare Xnote icon
         run: |
           mkdir -p Xnote.AppDir/usr/bin
           mkdir -p Xnote.AppDir/usr/share/applications
@@ -183,9 +188,15 @@ jobs:
 
           cp xnote Xnote.AppDir/usr/bin/xnote
 
-          cp assets/Xnote-logo.png \
+          magick assets/Xnote-logo.png \
+            -resize 256x256 \
+            -background none \
+            -gravity center \
+            -extent 256x256 \
             Xnote.AppDir/usr/share/icons/hicolor/256x256/apps/xnote.png
 
+      - name: Create desktop file
+        run: |
           cat > Xnote.AppDir/usr/share/applications/xnote.desktop << 'EOF'
           [Desktop Entry]
           Name=Xnote
@@ -201,6 +212,7 @@ jobs:
         run: |
           wget -O linuxdeploy \
             https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+
           chmod +x linuxdeploy
 
       - name: Build AppImage
