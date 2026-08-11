@@ -40,8 +40,69 @@ jobs:
 
           dpkg-deb --build package xnote_1.0.0_amd64.deb
 
-      - name: Upload Xnote installer
+      - name: Upload Xnote Debian installer
         uses: actions/upload-artifact@v4
         with:
           name: xnote-deb
           path: xnote_1.0.0_amd64.deb
+
+  build-rpm:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Get Xnote
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y build-essential libncurses-dev rpm
+
+      - name: Build Xnote
+        run: make
+
+      - name: Create RPM package
+        run: |
+          mkdir -p rpmbuild/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
+
+          mkdir -p xnote-package/usr/bin
+          cp xnote xnote-package/usr/bin/xnote
+
+          tar -czf rpmbuild/SOURCES/xnote-1.0.0.tar.gz xnote-package
+
+          cat > rpmbuild/SPECS/xnote.spec << 'EOF'
+          Name:           xnote
+          Version:        1.0.0
+          Release:        1
+          Summary:        A simple terminal text editor
+          License:        GPL-3.0
+          BuildArch:      x86_64
+          Requires:       ncurses-libs
+
+          %description
+          Xnote is a lightweight terminal text editor.
+
+          %prep
+
+          %build
+
+          %install
+          mkdir -p %{buildroot}/usr/bin
+          cp xnote-package/usr/bin/xnote %{buildroot}/usr/bin/xnote
+          chmod 755 %{buildroot}/usr/bin/xnote
+
+          %files
+          /usr/bin/xnote
+          EOF
+
+          rpmbuild \
+            --define "_topdir $(pwd)/rpmbuild" \
+            -bb rpmbuild/SPECS/xnote.spec
+
+          cp rpmbuild/RPMS/x86_64/*.rpm xnote-1.0.0-1.x86_64.rpm
+
+      - name: Upload Xnote RPM installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: xnote-rpm
+          path: xnote-1.0.0-1.x86_64.rpm
