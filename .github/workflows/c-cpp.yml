@@ -5,6 +5,10 @@ on:
 
 jobs:
 
+  # ============================================================
+  # DEBIAN / UBUNTU
+  # ============================================================
+
   build-deb:
     runs-on: ubuntu-latest
 
@@ -26,6 +30,7 @@ jobs:
           mkdir -p package/usr/bin
 
           cp xnote package/usr/bin/xnote
+          chmod 755 package/usr/bin/xnote
 
           cat > package/DEBIAN/control << 'EOF'
           Package: xnote
@@ -47,6 +52,10 @@ jobs:
           name: xnote-deb
           path: xnote_1.0.0_amd64.deb
 
+
+  # ============================================================
+  # FEDORA / RED HAT
+  # ============================================================
 
   build-rpm:
     runs-on: ubuntu-latest
@@ -79,15 +88,13 @@ jobs:
           Summary:        A simple terminal text editor
           License:        GPL-3.0
           BuildArch:      x86_64
-          Requires:       ncurses-libs
 
           %description
           Xnote is a lightweight terminal text editor.
 
           %install
           mkdir -p %{buildroot}/usr/bin
-          cp %{_topdir}/../xnote %{buildroot}/usr/bin/xnote
-          chmod 755 %{buildroot}/usr/bin/xnote
+          install -m 755 %{_topdir}/../../xnote %{buildroot}/usr/bin/xnote
 
           %files
           /usr/bin/xnote
@@ -105,6 +112,10 @@ jobs:
           name: xnote-rpm
           path: xnote-1.0.0-1.x86_64.rpm
 
+
+  # ============================================================
+  # ARCH LINUX
+  # ============================================================
 
   build-arch:
     runs-on: ubuntu-latest
@@ -134,6 +145,7 @@ jobs:
         run: |
           mkdir -p arch-package/usr/bin
           cp xnote arch-package/usr/bin/xnote
+          chmod 755 arch-package/usr/bin/xnote
 
           cat > PKGBUILD << 'EOF'
           pkgname=xnote
@@ -145,7 +157,8 @@ jobs:
           depends=('ncurses')
 
           package() {
-              install -Dm755 "$startdir/arch-package/usr/bin/xnote" \
+              install -Dm755 \
+                  "$startdir/arch-package/usr/bin/xnote" \
                   "$pkgdir/usr/bin/xnote"
           }
           EOF
@@ -162,6 +175,10 @@ jobs:
           path: xnote-*.pkg.tar.zst
 
 
+  # ============================================================
+  # APPIMAGE
+  # ============================================================
+
   build-appimage:
     runs-on: ubuntu-latest
 
@@ -172,10 +189,18 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt update
-          sudo apt install -y build-essential libncurses-dev wget imagemagick
+          sudo apt install -y \
+            build-essential \
+            libncurses-dev \
+            wget \
+            imagemagick
 
       - name: Build Xnote
         run: make
+
+      # --------------------------------------------------------
+      # Prepare the 2000x2000 Canva icon
+      # --------------------------------------------------------
 
       - name: Prepare Xnote Icon
         run: |
@@ -183,13 +208,16 @@ jobs:
           mkdir -p Xnote.AppDir/usr/share/applications
           mkdir -p Xnote.AppDir/usr/share/icons/hicolor/256x256/apps
 
+          cp xnote Xnote.AppDir/usr/bin/xnote
+          chmod 755 Xnote.AppDir/usr/bin/xnote
+
           magick assets/Xnote-logo.png \
             -resize 256x256 \
             Xnote.AppDir/usr/share/icons/hicolor/256x256/apps/xnote.png
 
-      - name: Copy Xnote binary
-        run: |
-          cp xnote Xnote.AppDir/usr/bin/xnote
+      # --------------------------------------------------------
+      # Create desktop file
+      # --------------------------------------------------------
 
       - name: Create desktop file
         run: |
@@ -204,11 +232,20 @@ jobs:
           Terminal=true
           EOF
 
+      # --------------------------------------------------------
+      # Download linuxdeploy
+      # --------------------------------------------------------
+
       - name: Download linuxdeploy
         run: |
           wget -O linuxdeploy \
             https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+
           chmod +x linuxdeploy
+
+      # --------------------------------------------------------
+      # Build AppImage
+      # --------------------------------------------------------
 
       - name: Build AppImage
         run: |
@@ -219,6 +256,10 @@ jobs:
             --output appimage
 
           mv Xnote*.AppImage Xnote-1.0.0-x86_64.AppImage
+
+      # --------------------------------------------------------
+      # Upload AppImage
+      # --------------------------------------------------------
 
       - name: Upload Xnote AppImage
         uses: actions/upload-artifact@v4
