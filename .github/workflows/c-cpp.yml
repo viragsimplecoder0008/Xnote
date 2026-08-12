@@ -8,9 +8,6 @@ on:
         required: true
         default: "1.0.0"
 
-permissions:
-  contents: write
-
 jobs:
 
   # ============================================================
@@ -33,6 +30,8 @@ jobs:
         run: make
 
       - name: Create Debian package
+        env:
+          VERSION: ${{ inputs.version }}
         run: |
           mkdir -p package/DEBIAN
           mkdir -p package/usr/bin
@@ -40,9 +39,9 @@ jobs:
           cp xnote package/usr/bin/xnote
           chmod 755 package/usr/bin/xnote
 
-          cat > package/DEBIAN/control << 'EOF'
+          cat > package/DEBIAN/control << EOF
           Package: xnote
-          Version: 1.0.0
+          Version: ${VERSION}
           Section: editors
           Priority: optional
           Architecture: amd64
@@ -52,13 +51,13 @@ jobs:
           Depends: libncurses6
           EOF
 
-          dpkg-deb --build package xnote_1.0.0_amd64.deb
+          dpkg-deb --build package "xnote_${VERSION}_amd64.deb"
 
       - name: Upload Xnote Debian installer
         uses: actions/upload-artifact@v4
         with:
           name: xnote-deb
-          path: xnote_1.0.0_amd64.deb
+          path: xnote_${{ inputs.version }}_amd64.deb
 
 
   # ============================================================
@@ -107,10 +106,12 @@ jobs:
           chmod 755 rpmbuild/SOURCES/xnote
 
       - name: Create RPM spec
+        env:
+          VERSION: ${{ inputs.version }}
         run: |
-          cat > rpmbuild/SPECS/xnote.spec << 'EOF'
+          cat > rpmbuild/SPECS/xnote.spec << EOF
           Name:           xnote
-          Version:        1.0.0
+          Version:        ${VERSION}
           Release:        1
           Summary:        A simple terminal text editor
           License:        GPL-3.0
@@ -133,26 +134,32 @@ jobs:
           EOF
 
       - name: Build RPM
+        env:
+          VERSION: ${{ inputs.version }}
         run: |
           rpmbuild \
             --define "_topdir $(pwd)/rpmbuild" \
             -bb rpmbuild/SPECS/xnote.spec
 
       - name: Rename RPM
+        env:
+          VERSION: ${{ inputs.version }}
         run: |
           cp rpmbuild/RPMS/x86_64/*.rpm \
-            xnote-1.0.0-1.x86_64.rpm
+            "xnote-${VERSION}-1.x86_64.rpm"
 
       - name: Verify RPM
+        env:
+          VERSION: ${{ inputs.version }}
         run: |
-          rpm -qip xnote-1.0.0-1.x86_64.rpm
-          rpm -qpR xnote-1.0.0-1.x86_64.rpm
+          rpm -qip "xnote-${VERSION}-1.x86_64.rpm"
+          rpm -qpR "xnote-${VERSION}-1.x86_64.rpm"
 
       - name: Upload Xnote RPM installer
         uses: actions/upload-artifact@v4
         with:
           name: xnote-rpm
-          path: xnote-1.0.0-1.x86_64.rpm
+          path: xnote-${{ inputs.version }}-1.x86_64.rpm
 
 
   # ============================================================
@@ -184,15 +191,17 @@ jobs:
           su builder -c "cd '$GITHUB_WORKSPACE' && make"
 
       - name: Create Arch package
+        env:
+          VERSION: ${{ inputs.version }}
         run: |
           mkdir -p arch-package/usr/bin
 
           cp xnote arch-package/usr/bin/xnote
           chmod 755 arch-package/usr/bin/xnote
 
-          cat > PKGBUILD << 'EOF'
+          cat > PKGBUILD << EOF
           pkgname=xnote
-          pkgver=1.0.0
+          pkgver=${VERSION}
           pkgrel=1
           pkgdesc="A simple terminal text editor"
           arch=('x86_64')
@@ -201,8 +210,8 @@ jobs:
 
           package() {
               install -Dm755 \
-                  "$startdir/arch-package/usr/bin/xnote" \
-                  "$pkgdir/usr/bin/xnote"
+                  "\$startdir/arch-package/usr/bin/xnote" \
+                  "\$pkgdir/usr/bin/xnote"
           }
           EOF
 
@@ -366,8 +375,12 @@ jobs:
 
           ls -lh *.AppImage
 
+      - name: Rename AppImage
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
           mv Xnote*.AppImage \
-            Xnote-1.0.0-x86_64.AppImage
+            "Xnote-${VERSION}-x86_64.AppImage"
 
       # --------------------------------------------------------
       # Upload AppImage
@@ -377,7 +390,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: xnote-appimage
-          path: Xnote-1.0.0-x86_64.AppImage
+          path: Xnote-${{ inputs.version }}-x86_64.AppImage
 
 
   # ============================================================
@@ -392,6 +405,9 @@ jobs:
       - build-rpm
       - build-arch
       - build-appimage
+
+    permissions:
+      contents: write
 
     steps:
       - name: Download Debian package
@@ -418,18 +434,61 @@ jobs:
           name: xnote-appimage
           path: release-assets
 
-      - name: Show release files
+      - name: List release files
         run: |
           echo "Release files:"
           ls -lh release-assets
 
+      - name: Create release notes
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          cat > release-notes.md << EOF
+          # Xnote ${VERSION}
+
+          Xnote is a lightweight terminal text editor designed for simplicity, usability, and a clean experience.
+
+          ## Downloads
+
+          Choose the package for your Linux distribution:
+
+          - Debian / Ubuntu: \`xnote_${VERSION}_amd64.deb\`
+          - Fedora / Red Hat: \`xnote-${VERSION}-1.x86_64.rpm\`
+          - Arch Linux: \`xnote-${VERSION}-1-x86_64.pkg.tar.zst\`
+          - Linux AppImage: \`Xnote-${VERSION}-x86_64.AppImage\`
+
+          ## Features
+
+          - Terminal-based text editing
+          - Save with Ctrl+S
+          - Quit with Ctrl+X
+          - Command menu with Ctrl+R
+          - Basic syntax highlighting
+          - Line numbers
+          - Debian package
+          - RPM package
+          - Arch Linux package
+          - AppImage support
+
+          ## Requirements
+
+          Xnote is currently built for x86_64 Linux systems.
+
+          Package dependencies are handled by the corresponding package manager where applicable.
+
+          ## Notes
+
+          This is Xnote ${VERSION}.
+
+          Xnote is still under development, so expect more features and improvements in future releases.
+          EOF
+
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
         run: |
-          TAG="v${{ inputs.version }}"
-
-          gh release create "$TAG" \
+          gh release create "v${VERSION}" \
             release-assets/* \
-            --title "Xnote ${{ inputs.version }}" \
-            --generate-notes
+            --title "Xnote ${VERSION}" \
+            --notes-file release-notes.md
