@@ -54,7 +54,7 @@ jobs:
 
 
   # ============================================================
-  # FEDORA / RED HAT
+  # FEDORA / RED HAT RPM
   # ============================================================
 
   build-rpm:
@@ -82,6 +82,7 @@ jobs:
           mkdir -p rpmbuild/SRPMS
 
           cp xnote rpmbuild/SOURCES/xnote
+          chmod 755 rpmbuild/SOURCES/xnote
 
           cat > rpmbuild/SPECS/xnote.spec << 'EOF'
           Name:           xnote
@@ -207,7 +208,7 @@ jobs:
         run: make
 
       # --------------------------------------------------------
-      # Install Pillow for icon conversion
+      # Install Pillow
       # --------------------------------------------------------
 
       - name: Install Pillow
@@ -215,7 +216,7 @@ jobs:
           python3 -m pip install --user Pillow --break-system-packages
 
       # --------------------------------------------------------
-      # Prepare AppDir
+      # Create AppDir
       # --------------------------------------------------------
 
       - name: Prepare Xnote AppDir
@@ -228,7 +229,8 @@ jobs:
           chmod 755 Xnote.AppDir/usr/bin/xnote
 
       # --------------------------------------------------------
-      # Convert 2000x2000 Canva icon to 256x256
+      # Resize Canva's 2000x2000 logo
+      # NO MAGICK!
       # --------------------------------------------------------
 
       - name: Prepare Xnote Icon
@@ -239,21 +241,26 @@ jobs:
           source = "assets/Xnote-logo.png"
           output = "Xnote.AppDir/usr/share/icons/hicolor/256x256/apps/xnote.png"
 
+          print("Loading:", source)
+
           image = Image.open(source)
 
-          print("Original icon size:", image.size)
+          print("Original size:", image.size)
 
           image = image.convert("RGBA")
-          image = image.resize((256, 256), Image.Resampling.LANCZOS)
+          image = image.resize(
+              (256, 256),
+              Image.Resampling.LANCZOS
+          )
 
           image.save(output, "PNG")
 
           print("Created:", output)
-          print("Final icon size:", image.size)
+          print("Final size:", image.size)
           PY
 
       # --------------------------------------------------------
-      # Create desktop file
+      # Desktop entry
       # --------------------------------------------------------
 
       - name: Create desktop file
