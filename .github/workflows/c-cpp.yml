@@ -3,6 +3,10 @@ name: Build Xnote
 on:
   workflow_dispatch:
 
+  push:
+    tags:
+      - 'v*'
+
 jobs:
 
   # ============================================================
@@ -370,3 +374,85 @@ jobs:
         with:
           name: xnote-appimage
           path: Xnote-1.0.0-x86_64.AppImage
+
+
+  # ============================================================
+  # GITHUB RELEASE
+  # ============================================================
+
+  create-release:
+    if: startsWith(github.ref, 'refs/tags/v')
+
+    needs:
+      - build-deb
+      - build-rpm
+      - build-arch
+      - build-appimage
+
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      # --------------------------------------------------------
+      # Download Debian package
+      # --------------------------------------------------------
+
+      - name: Download Debian package
+        uses: actions/download-artifact@v4
+        with:
+          name: xnote-deb
+          path: release
+
+      # --------------------------------------------------------
+      # Download RPM package
+      # --------------------------------------------------------
+
+      - name: Download RPM package
+        uses: actions/download-artifact@v4
+        with:
+          name: xnote-rpm
+          path: release
+
+      # --------------------------------------------------------
+      # Download Arch package
+      # --------------------------------------------------------
+
+      - name: Download Arch package
+        uses: actions/download-artifact@v4
+        with:
+          name: xnote-arch
+          path: release
+
+      # --------------------------------------------------------
+      # Download AppImage
+      # --------------------------------------------------------
+
+      - name: Download AppImage
+        uses: actions/download-artifact@v4
+        with:
+          name: xnote-appimage
+          path: release
+
+      # --------------------------------------------------------
+      # Show release files
+      # --------------------------------------------------------
+
+      - name: Verify release files
+        run: |
+          echo "Release files:"
+          ls -lh release/
+
+      # --------------------------------------------------------
+      # Create GitHub Release
+      # --------------------------------------------------------
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Xnote ${{ github.ref_name }}
+          generate_release_notes: true
+          files: |
+            release/*
