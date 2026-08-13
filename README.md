@@ -109,7 +109,7 @@ Xnote is currently tested on:
 - Ubuntu / Debian
 - Fedora / Red Hat
 - Arch Linux
-- AppImage
+- AppImage (Universally)
 
 ## Development
 
