@@ -134,8 +134,6 @@ jobs:
           EOF
 
       - name: Build RPM
-        env:
-          VERSION: ${{ inputs.version }}
         run: |
           rpmbuild \
             --define "_topdir $(pwd)/rpmbuild" \
@@ -255,20 +253,12 @@ jobs:
         run: |
           make
 
-      # --------------------------------------------------------
-      # Install Pillow
-      # --------------------------------------------------------
-
       - name: Install Pillow
         run: |
           python3 -m pip install \
             --user \
             Pillow \
             --break-system-packages
-
-      # --------------------------------------------------------
-      # Create AppDir
-      # --------------------------------------------------------
 
       - name: Prepare Xnote AppDir
         run: |
@@ -278,11 +268,6 @@ jobs:
 
           cp xnote Xnote.AppDir/usr/bin/xnote
           chmod 755 Xnote.AppDir/usr/bin/xnote
-
-      # --------------------------------------------------------
-      # Resize Canva's 2000x2000 logo
-      # NO MAGICK!
-      # --------------------------------------------------------
 
       - name: Prepare Xnote Icon
         run: |
@@ -311,10 +296,6 @@ jobs:
           print("Final size:", image.size)
           PY
 
-      # --------------------------------------------------------
-      # Verify icon
-      # --------------------------------------------------------
-
       - name: Verify Xnote Icon
         run: |
           file Xnote.AppDir/usr/share/icons/hicolor/256x256/apps/xnote.png
@@ -333,10 +314,6 @@ jobs:
           print("Icon verification: OK")
           PY
 
-      # --------------------------------------------------------
-      # Desktop entry
-      # --------------------------------------------------------
-
       - name: Create desktop file
         run: |
           cat > Xnote.AppDir/usr/share/applications/xnote.desktop << 'EOF'
@@ -350,20 +327,12 @@ jobs:
           Terminal=true
           EOF
 
-      # --------------------------------------------------------
-      # Download linuxdeploy
-      # --------------------------------------------------------
-
       - name: Download linuxdeploy
         run: |
           wget -O linuxdeploy \
             https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
 
           chmod +x linuxdeploy
-
-      # --------------------------------------------------------
-      # Build AppImage
-      # --------------------------------------------------------
 
       - name: Build AppImage
         run: |
@@ -381,10 +350,6 @@ jobs:
         run: |
           mv Xnote*.AppImage \
             "Xnote-${VERSION}-x86_64.AppImage"
-
-      # --------------------------------------------------------
-      # Upload AppImage
-      # --------------------------------------------------------
 
       - name: Upload Xnote AppImage
         uses: actions/upload-artifact@v4
@@ -410,6 +375,17 @@ jobs:
       contents: write
 
     steps:
+      # --------------------------------------------------------
+      # THIS WAS THE MISSING PART
+      # --------------------------------------------------------
+
+      - name: Get Xnote repository
+        uses: actions/checkout@v4
+
+      # --------------------------------------------------------
+      # Download artifacts
+      # --------------------------------------------------------
+
       - name: Download Debian package
         uses: actions/download-artifact@v4
         with:
@@ -434,10 +410,18 @@ jobs:
           name: xnote-appimage
           path: release-assets
 
+      # --------------------------------------------------------
+      # Check release files
+      # --------------------------------------------------------
+
       - name: List release files
         run: |
           echo "Release files:"
           ls -lh release-assets
+
+      # --------------------------------------------------------
+      # Create release notes
+      # --------------------------------------------------------
 
       - name: Create release notes
         env:
@@ -482,6 +466,10 @@ jobs:
 
           Xnote is still under development, so expect more features and improvements in future releases.
           EOF
+
+      # --------------------------------------------------------
+      # Create GitHub Release
+      # --------------------------------------------------------
 
       - name: Create GitHub Release
         env:
