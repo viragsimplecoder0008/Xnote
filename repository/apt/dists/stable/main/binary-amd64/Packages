@@ -1,0 +1,15 @@
+Package: xnote
+Version: 1.0.1
+Architecture: amd64
+Maintainer: Xnote
+Depends: libncurses6
+Filename: pool/main/xnote_1.0.1_amd64.deb
+Size: 6404
+MD5sum: acfff77c2c51aa31d4b87065c359ee52
+SHA1: 1e7050b5fc3fdde14ba5aa4467161cdc4b24e4fc
+SHA256: 55cbab50a931cdcea2bcde83d2147eb7bcd8c28dc41ea41a2446d63cfd46bc7a
+Section: editors
+Priority: optional
+Description: A simple terminal text editor
+ Xnote is a lightweight terminal text editor.
+
