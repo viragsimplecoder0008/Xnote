@@ -2,6 +2,7 @@ name: Publish Xnote Package Repositories
 
 on:
   workflow_dispatch:
+
   workflow_run:
     workflows:
       - Build Xnote
@@ -10,17 +11,11 @@ on:
 
 permissions:
   contents: write
-  pages: write
-  id-token: write
 
 jobs:
 
-  # ============================================================
-  # CHECK BUILD
-  # ============================================================
-
-  check-build:
-    name: Check Xnote build
+  publish:
+    name: Publish Xnote repositories
     runs-on: ubuntu-latest
 
     if: >
@@ -28,40 +23,31 @@ jobs:
       github.event.workflow_run.conclusion == 'success'
 
     steps:
+
+      # ==========================================================
+      # GET SOURCE
+      # ==========================================================
+
       - name: Get Xnote
         uses: actions/checkout@v4
 
-      - name: Get latest release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release view --json tagName,name
-
-  # ============================================================
-  # PUBLISH PACKAGES
-  # ============================================================
-
-  publish:
-    name: Publish package repositories
-    runs-on: ubuntu-latest
-
-    needs: check-build
-
-    steps:
-      - name: Get Xnote
-        uses: actions/checkout@v4
+      # ==========================================================
+      # INSTALL TOOLS
+      # ==========================================================
 
       - name: Install repository tools
         run: |
           sudo apt update
+
           sudo apt install -y \
             dpkg-dev \
             rpm \
-            createrepo-c
+            createrepo-c \
+            gnupg
 
-      # ----------------------------------------------------------
-      # Download latest release
-      # ----------------------------------------------------------
+      # ==========================================================
+      # GET LATEST RELEASE
+      # ==========================================================
 
       - name: Download latest release packages
         env:
@@ -87,17 +73,53 @@ jobs:
             --dir packages/appimage
 
       # ==========================================================
-      # APT REPOSITORY
+      # FIND VERSION
       # ==========================================================
 
-      - name: Prepare APT repository
+      - name: Get release version
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
+          VERSION=$(gh release view \
+            --repo "${{ github.repository }}" \
+            --json tagName \
+            --jq '.tagName' \
+            | sed 's/^v//')
+
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+          echo "Xnote version: $VERSION"
+
+      # ==========================================================
+      # PREPARE WEBSITE
+      # ==========================================================
+
+      - name: Prepare repository
+        run: |
+          rm -rf repository
+
           mkdir -p repository/apt/pool/main
           mkdir -p repository/apt/dists/stable/main/binary-amd64
 
+          mkdir -p repository/rpm/x86_64
+
+          mkdir -p repository/appimage
+
+      # ==========================================================
+      # COPY DEBIAN PACKAGE
+      # ==========================================================
+
+      - name: Copy Debian package
+        run: |
           cp packages/deb/*.deb \
             repository/apt/pool/main/
 
+      # ==========================================================
+      # CREATE APT PACKAGES INDEX
+      # ==========================================================
+
+      - name: Create APT Packages index
+        run: |
           cd repository/apt
 
           dpkg-scanpackages \
@@ -109,88 +131,248 @@ jobs:
             dists/stable/main/binary-amd64/Packages
 
       # ==========================================================
-      # RPM REPOSITORY
+      # CREATE APT RELEASE METADATA
       # ==========================================================
 
-      - name: Prepare RPM repository
+      - name: Create APT Release metadata
         run: |
-          mkdir -p repository/rpm/x86_64
+          cd repository/apt
 
+          cat > dists/stable/Release << EOF
+          Origin: Xnote
+          Label: Xnote
+          Suite: stable
+          Codename: stable
+          Architectures: amd64
+          Components: main
+          Description: Xnote package repository
+          Date: $(date -Ru)
+
+          EOF
+
+          cd dists/stable
+
+          echo "MD5Sum:" >> Release
+
+          find main -type f | while read file; do
+            hash=$(md5sum "$file" | awk '{print $1}')
+            size=$(stat -c%s "$file")
+
+            printf " %s %16s %s\n" \
+              "$hash" \
+              "$size" \
+              "$file" >> Release
+          done
+
+          echo "SHA256:" >> Release
+
+          find main -type f | while read file; do
+            hash=$(sha256sum "$file" | awk '{print $1}')
+            size=$(stat -c%s "$file")
+
+            printf " %s %16s %s\n" \
+              "$hash" \
+              "$size" \
+              "$file" >> Release
+          done
+
+      # ==========================================================
+      # IMPORT GPG PRIVATE KEY
+      # ==========================================================
+
+      - name: Import APT signing key
+        env:
+          APT_GPG_PRIVATE_KEY: ${{ secrets.APT_GPG_PRIVATE_KEY }}
+        run: |
+          printf '%s\n' "$APT_GPG_PRIVATE_KEY" \
+            | gpg --batch --import
+
+      # ==========================================================
+      # SIGN APT RELEASE
+      # ==========================================================
+
+      - name: Sign APT repository
+        env:
+          APT_GPG_KEY_ID: ${{ secrets.APT_GPG_KEY_ID }}
+        run: |
+          cd repository/apt/dists/stable
+
+          gpg \
+            --batch \
+            --yes \
+            --local-user "$APT_GPG_KEY_ID" \
+            --armor \
+            --detach-sign \
+            --output Release.gpg \
+            Release
+
+          gpg \
+            --batch \
+            --yes \
+            --local-user "$APT_GPG_KEY_ID" \
+            --clearsign \
+            --output InRelease \
+            Release
+
+      # ==========================================================
+      # COPY PUBLIC KEY
+      # ==========================================================
+
+      - name: Copy public APT key
+        run: |
+          cp apt/xnote-keyring.asc \
+            repository/apt/xnote-keyring.asc
+
+      # ==========================================================
+      # COPY RPM PACKAGE
+      # ==========================================================
+
+      - name: Copy RPM package
+        run: |
           cp packages/rpm/*.rpm \
             repository/rpm/x86_64/
 
+      # ==========================================================
+      # CREATE RPM REPOSITORY
+      # ==========================================================
+
+      - name: Create RPM repository metadata
+        run: |
           createrepo_c \
             repository/rpm/x86_64
 
       # ==========================================================
-      # APPIMAGE DOWNLOADS
+      # COPY APPIMAGE
       # ==========================================================
 
       - name: Copy AppImage
         run: |
-          mkdir -p repository/appimage
-
           cp packages/appimage/*.AppImage \
             repository/appimage/
 
       # ==========================================================
-      # Repository information
+      # CREATE INSTALLATION INFORMATION
       # ==========================================================
 
-      - name: Create repository index
+      - name: Create repository website
         run: |
-          cat > repository/index.html << 'EOF'
+          cat > repository/index.html << EOF
           <!DOCTYPE html>
           <html>
           <head>
               <meta charset="UTF-8">
               <title>Xnote Linux Packages</title>
           </head>
+
           <body>
+
               <h1>Xnote Linux Packages</h1>
 
+              <p>Current version: ${VERSION}</p>
+
               <h2>Debian / Ubuntu / Linux Mint</h2>
-              <p>APT repository:</p>
-              <pre>https://viragsimplecoder0008.github.io/Xnote/apt/</pre>
+
+              <p>Install the Xnote repository key:</p>
+
+              <pre>
+          curl -fsSL https://viragsimplecoder0008.github.io/Xnote/apt/xnote-keyring.asc \
+            | sudo gpg --dearmor -o /usr/share/keyrings/xnote-archive-keyring.gpg
+              </pre>
+
+              <p>Add the repository:</p>
+
+              <pre>
+          echo "deb [signed-by=/usr/share/keyrings/xnote-archive-keyring.gpg] https://viragsimplecoder0008.github.io/Xnote/apt stable main" \
+            | sudo tee /etc/apt/sources.list.d/xnote.list
+              </pre>
+
+              <p>Install Xnote:</p>
+
+              <pre>
+          sudo apt update
+          sudo apt install xnote
+              </pre>
 
               <h2>Fedora / Red Hat</h2>
-              <p>RPM repository:</p>
-              <pre>https://viragsimplecoder0008.github.io/Xnote/rpm/</pre>
+
+              <p>Add the Xnote repository:</p>
+
+              <pre>
+          sudo dnf config-manager addrepo \
+            --from-repofile=https://viragsimplecoder0008.github.io/Xnote/rpm/xnote.repo
+              </pre>
+
+              <p>Then install:</p>
+
+              <pre>
+          sudo dnf install xnote
+              </pre>
+
+              <h2>Arch Linux</h2>
+
+              <pre>
+          yay -S xnote
+              </pre>
+
+              <p>Or:</p>
+
+              <pre>
+          paru -S xnote
+              </pre>
 
               <h2>AppImage</h2>
+
               <p>
-                  Download the AppImage from the Xnote GitHub Releases page.
+                  Download the AppImage from
+                  <a href="https://github.com/viragsimplecoder0008/Xnote/releases">
+                      GitHub Releases
+                  </a>.
               </p>
+
           </body>
           </html>
           EOF
 
       # ==========================================================
-      # PUBLISH TO GITHUB PAGES BRANCH
+      # CREATE RPM REPOSITORY FILE
       # ==========================================================
 
-      - name: Publish repositories
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Create RPM repository configuration
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          cat > repository/rpm/xnote.repo << 'EOF'
+          [xnote]
+          name=Xnote
+          baseurl=https://viragsimplecoder0008.github.io/Xnote/rpm/x86_64/
+          enabled=1
+          gpgcheck=0
+          EOF
 
-          git fetch origin gh-pages || true
+      # ==========================================================
+      # PUBLISH TO GH-PAGES
+      # ==========================================================
 
-          if git show-ref --verify --quiet refs/remotes/origin/gh-pages; then
-            git checkout gh-pages
-          else
-            git checkout --orphan gh-pages
-            git rm -rf . || true
-          fi
+      - name: Publish to gh-pages
+        run: |
+          git config user.name \
+            "github-actions[bot]"
+
+          git config user.email \
+            "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git fetch origin gh-pages
+
+          git checkout gh-pages
+
+          git rm -rf . \
+            --exclude=.git \
+            || true
 
           cp -r repository/. .
 
           git add .
 
           git commit \
-            -m "Publish Xnote package repositories" \
+            -m "Publish Xnote ${VERSION}" \
             || echo "Nothing to commit"
 
           git push origin gh-pages
